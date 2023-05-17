@@ -1,6 +1,11 @@
 import openai
 import time
 import pyodbc
+import logging
+import concurrent.futures
+
+# Configure logging
+logging.basicConfig(filename='data_processor.log', level=logging.INFO)
 
 def submit_to_api(prompt):
     max_retry_count = 5
@@ -27,8 +32,7 @@ def validate_record(content, rewritten_content):
         return True
     if not (rewritten_content.startswith('"') and rewritten_content.endswith('"')):
         return False
-    length_ratio = len(rewritten_content) / len(content)
-    return 0.8 <= length_ratio <= 1.2
+    return True
 
 def process_data(connection_string):
     batch_size = 10
@@ -46,7 +50,7 @@ def process_data(connection_string):
         "As a hard sci-fi author in Alastair Reynolds' style with a serious tone, rewrite game file content:\n"
         "Process input lines without altering their structure.\n"
         "Do not rewrite tags (content immediately before a colon at the start of the line).\n"
-        "Preserve tags, text length, special characters, and variables.\n"
+        "Preserve tags, text length, special characters, and variables. Do not rewrite content which already has an appropriate tone or is well known military language.\n"
         "Text to rewrite:\n"
         )
 
@@ -70,15 +74,20 @@ def process_data(connection_string):
                     continue
 
                 # Validate the record
-                original_row = next((row for row in batch_rows if row.tag == tag), None)
-                if original_row and validate_record(original_row.content, content):
-                    # Update the database with the processed data
-                    cursor.execute("""
-                        UPDATE stellaris_mod_strings
-                        SET rewritten_content = ?, processed = 'Y'
-                        WHERE tag = ?
-                    """, (content, tag))
-                    conn.commit()
+                original_row = next((row for row in batch_rows if row.tag == tag), None)  
+                if original_row:
+                    is_valid = validate_record(original_row.content, content)
+                    #logging.info(f"Tag: {tag}, Rewritten Row: {row_data}, Validation Result: {is_valid}")
+
+                    if is_valid:
+                        cursor.execute("""  
+                        UPDATE stellaris_mod_strings  
+                        SET rewritten_content = ?, processed = 'Y'  
+                        WHERE tag = ?  
+                        """, (content, tag))  
+                        conn.commit()  
+
+            time.sleep(1) 
 
         time.sleep(1)
         print(f"Batch {i + 1} of {len(unprocessed_rows)} processed.")
