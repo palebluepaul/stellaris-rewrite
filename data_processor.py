@@ -10,7 +10,7 @@ def submit_to_api(prompt):
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[{"role": "system", "content": prompt}, {"role": "user", "content": prompt}],
-                max_tokens=2000,
+                max_tokens=3000,
                 n=1,
                 stop=None,
                 temperature=0,
@@ -20,11 +20,18 @@ def submit_to_api(prompt):
             print(f"Error: {e}")
             retry_count += 1
             time.sleep(5)
-                       
+    return None
 
+def validate_record(content, rewritten_content):
+    if rewritten_content is None or rewritten_content == "":
+        return True
+    if not (rewritten_content.startswith('"') and rewritten_content.endswith('"')):
+        return False
+    length_ratio = len(rewritten_content) / len(content)
+    return 0.8 <= length_ratio <= 1.2
 
 def process_data(connection_string):
-    batch_size = 30
+    batch_size = 10
 
     conn = pyodbc.connect(connection_string)
     cursor = conn.cursor()
@@ -48,6 +55,9 @@ def process_data(connection_string):
         
         print(f"Prompt: {prompt}")
         rewritten_data = submit_to_api(prompt)
+        if rewritten_data is None:
+            print("No data returned after 5 attempts.")
+            continue
         print(f"Rewritten data: {rewritten_data}")
         rewritten_rows = rewritten_data.split("\n")
 
@@ -59,15 +69,19 @@ def process_data(connection_string):
                     print(f"Error with row_data: {row_data}")
                     continue
 
-                # Update the database with the processed data
-                cursor.execute("""
-                    UPDATE stellaris_mod_strings
-                    SET rewritten_content = ?, processed = 'Y'
-                    WHERE tag = ?
-                """, (content, tag))
-                conn.commit()
+                # Validate the record
+                original_row = next((row for row in batch_rows if row.tag == tag), None)
+                if original_row and validate_record(original_row.content, content):
+                    # Update the database with the processed data
+                    cursor.execute("""
+                        UPDATE stellaris_mod_strings
+                        SET rewritten_content = ?, processed = 'Y'
+                        WHERE tag = ?
+                    """, (content, tag))
+                    conn.commit()
 
         time.sleep(1)
+        print(f"Batch {i + 1} of {len(unprocessed_rows)} processed.")
 
     cursor.close()
     conn.close()
