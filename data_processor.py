@@ -35,7 +35,7 @@ def validate_record(content, rewritten_content):
     return True
 
 def process_data(connection_string):
-    batch_size = 10
+    batch_size = 20
 
     conn = pyodbc.connect(connection_string)
     cursor = conn.cursor()
@@ -95,3 +95,5 @@ def process_data(connection_string):
     cursor.close()
     conn.close()
     print("Data processed successfully.")
+
+    
