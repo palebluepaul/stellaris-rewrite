@@ -1,10 +1,11 @@
 import os
+import pyodbc
 
 def write_output_files(run_id, output_directory, connection_string):
     conn = pyodbc.connect(connection_string)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM your_table WHERE run_id = ?", (run_id,))
+    cursor.execute("SELECT * FROM stellaris_mod_strings WHERE run_id = ?", (run_id,))
     rows = cursor.fetchall()
 
     file_map = {}

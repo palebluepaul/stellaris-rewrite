@@ -38,3 +38,9 @@ build/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# input and output
+input/
+output/
+logs/
+test_data/

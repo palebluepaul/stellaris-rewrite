@@ -4,6 +4,7 @@ from data_loader import load_data
 from data_processor import process_data
 from write_output import write_output_files
 from dotenv import load_dotenv
+import pyodbc
 
 load_dotenv()
 
