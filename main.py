@@ -13,7 +13,7 @@ def main(run_id, input_directory, output_directory):
 
     load_data(run_id, input_directory, connection_string)
     process_data(connection_string)
-    write_output_files(run_id, output_directory, connection_string)
+    write_output_files(input_directory, output_directory, connection_string)
 
 
 if __name__ == "__main__":

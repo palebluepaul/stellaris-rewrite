@@ -1,25 +1,40 @@
 import os
 import pyodbc
 
-def write_output_files(run_id, output_directory, connection_string):
-    conn = pyodbc.connect(connection_string)
-    cursor = conn.cursor()
+def write_output_files(input_directory, output_directory, connection_string):  
+    conn = pyodbc.connect(connection_string)  
+    cursor = conn.cursor()  
 
-    cursor.execute("SELECT * FROM stellaris_mod_strings WHERE run_id = ?", (run_id,))
-    rows = cursor.fetchall()
+    cursor.execute("SELECT * FROM stellaris_mod_strings WHERE processed = 'Y'")  
+    rows = cursor.fetchall()  
 
-    file_map = {}
+    # Build a dictionary of processed strings for easy access
+    processed_strings = {(row.file_name, row.tag): row.rewritten_content for row in rows}
 
-    for row in rows:
-        if row.file_name not in file_map:
-            file_map[row.file_name] = []
+    for input_file_name in os.listdir(input_directory):
+        with open(os.path.join(input_directory, input_file_name), 'r') as input_file:
+            lines = input_file.readlines()
 
-        file_map[row.file_name].append(f"{row.tag}: {row.rewritten_content}\n")
+        output_lines = []
+        for line in lines:
+            if ':' in line:
+                tag, _ = line.split(':', 1)
+                tag = tag.strip()  # To remove leading/trailing spaces
+                rewritten_content = processed_strings.get((input_file_name, tag))
 
-    for file_name, file_content in file_map.items():
-        with open(os.path.join(output_directory, file_name), 'w') as output_file:
-            output_file.writelines(file_content)
+                # If we found a processed string, use it; otherwise, keep the original line
+                if rewritten_content is not None:
+                    output_lines.append(f"{tag}: {rewritten_content}\n")
+                else:
+                    output_lines.append(line)
+            else:
+                output_lines.append(line)  # lines without tags are kept as is
 
-    cursor.close()
-    conn.close()
+        # Write the output file
+        with open(os.path.join(output_directory, input_file_name), 'w') as output_file:  
+            output_file.writelines(output_lines)
+
+    cursor.close()  
+    conn.close()  
     print("Output files written successfully.")
+

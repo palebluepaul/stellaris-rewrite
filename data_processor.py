@@ -7,6 +7,7 @@ import concurrent.futures
 # Configure logging
 logging.basicConfig(filename='data_processor.log', level=logging.INFO)
 
+
 def submit_to_api(prompt):
     max_retry_count = 5
     retry_count = 0
@@ -73,19 +74,34 @@ def process_data(connection_string):
                     print(f"Error with row_data: {row_data}")
                     continue
 
-                # Validate the record
+                # Validate the record  
                 original_row = next((row for row in batch_rows if row.tag == tag), None)  
-                if original_row:
-                    is_valid = validate_record(original_row.content, content)
-                    #logging.info(f"Tag: {tag}, Rewritten Row: {row_data}, Validation Result: {is_valid}")
-
-                    if is_valid:
-                        cursor.execute("""  
-                        UPDATE stellaris_mod_strings  
-                        SET rewritten_content = ?, processed = 'Y'  
-                        WHERE tag = ?  
-                        """, (content, tag))  
-                        conn.commit()  
+                if original_row and validate_record(original_row.content, content):  
+                    # Update the database with the processed data  
+                    update_success = False
+                    while not update_success:
+                        try:
+                            cursor.execute("""  
+                            UPDATE stellaris_mod_strings  
+                            SET rewritten_content = ?, processed = 'Y'  
+                            WHERE tag = ?  
+                            """, (content, tag))  
+                            conn.commit()  
+                            update_success = True
+                        except pyodbc.Error as e:
+                            print(f"Database error: {e}")
+                            print("Reconnecting and retrying...")
+                            if conn is not None:
+                                 conn.close()
+                            conn = pyodbc.connect(connection_string)  
+                            cursor = conn.cursor() 
+                            cursor.execute("""  
+                            UPDATE stellaris_mod_strings  
+                            SET rewritten_content = ?, processed = 'Y'  
+                            WHERE tag = ?  
+                            """, (content, tag))  
+                            conn.commit()  
+                            update_success = True
 
             time.sleep(1) 
 
